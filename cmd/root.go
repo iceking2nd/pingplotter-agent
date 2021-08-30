@@ -24,6 +24,7 @@ import (
 	"golang.org/x/sys/unix"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -60,9 +61,21 @@ func handlerPath(ctx *gin.Context) {
 		packetTypeMsg     string
 		osName            string
 		osVersion         string
-		tracerouteCommand = "/usr/bin/traceroute -m 20 -n -q 1 -w 5"
+		timeoutTimeString string
+		timeoutTime       float64
+		tracerouteCommand = "/usr/bin/traceroute -m 20 -n -q 1"
 		uts               = &unix.Utsname{}
 	)
+
+	timeoutTimeString = ctx.DefaultQuery("TimeoutTime", "5000")
+	timeoutTime, _ = strconv.ParseFloat(timeoutTimeString, 64)
+	tracerouteCommand += fmt.Sprintf(" -w %.3f", func() float64 {
+		if (timeoutTime-50)/1000 < 0 {
+			return 0
+		}
+		return (timeoutTime - 50) / 1000
+	}())
+
 	_ = unix.Uname(uts)
 	osName = string(bytes.Trim(uts.Sysname[:], "\x00"))
 	osVersion = string(bytes.Trim(uts.Version[:], "\x00"))
@@ -87,6 +100,8 @@ func handlerPath(ctx *gin.Context) {
 
 	tracerouteCommand += " "
 	tracerouteCommand += ctx.Query("IP")
+	tracerouteCommand += " "
+	tracerouteCommand += ctx.DefaultQuery("PacketSize", "56")
 
 	ctx.Header("Content-type", "text/html")
 	ctx.String(200, `<html>
